@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Pengadaan Barang/Jasa — Kab. Kuningan</title>
+<style>
+  :root{
+    --navy-950:#0d1b2e;
+    --navy-800:#16273f;
+    --navy-700:#1e3455;
+    --paper:#f6f5f1;
+    --line:#dcd9d0;
+    --ink:#1c1f24;
+    --ink-soft:#5b6270;
+    --green:#1f7a4d;
+    --green-bg:#e4f3ea;
+    --amber:#8a5a12;
+    --amber-bg:#faf0dd;
+    --font-head: "Iowan Old Style","Georgia","Times New Roman",serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+  }
+  header{
+    background:var(--navy-950);
+    color:#eef1f5;
+    padding:2.2rem 1.5rem 1.6rem;
+  }
+  header .wrap{max-width:1180px;margin:0 auto;}
+  header .kop{
+    font-size:.72rem;
+    letter-spacing:.04em;
+    color:#9fb0c6;
+    margin-bottom:.5rem;
+  }
+  header h1{
+    font-family:var(--font-head);
+    font-weight:600;
+    font-size:1.9rem;
+    margin:0 0 .3rem;
+    line-height:1.15;
+  }
+  header p{
+    margin:0;
+    color:#b7c2d1;
+    font-size:.92rem;
+    max-width:56ch;
+  }
+  .stats{
+    display:flex;
+    gap:1.1rem;
+    margin-top:1.4rem;
+    flex-wrap:wrap;
+  }
+  .stat{
+    background:var(--navy-800);
+    border:1px solid var(--navy-700);
+    border-radius:6px;
+    padding:.7rem 1rem;
+    min-width:130px;
+  }
+  .stat .n{font-family:var(--font-head);font-size:1.5rem;font-weight:600;}
+  .stat .l{font-size:.72rem;color:#9fb0c6;margin-top:.15rem;}
+
+  main{max-width:1180px;margin:0 auto;padding:1.6rem 1.5rem 3rem;}
+
+  .toolbar{
+    display:flex;
+    gap:.7rem;
+    flex-wrap:wrap;
+    align-items:center;
+    margin-bottom:1rem;
+  }
+  .toolbar input[type=text]{
+    flex:1 1 260px;
+    padding:.6rem .8rem;
+    border:1px solid var(--line);
+    border-radius:5px;
+    font-size:.92rem;
+    background:#fff;
+  }
+  .toolbar select{
+    padding:.6rem .8rem;
+    border:1px solid var(--line);
+    border-radius:5px;
+    font-size:.9rem;
+    background:#fff;
+  }
+  .count{font-size:.82rem;color:var(--ink-soft);margin-bottom:.6rem;}
+
+  .table-wrap{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:auto;
+  }
+  table{border-collapse:collapse;width:100%;font-size:.86rem;}
+  thead th{
+    position:sticky;top:0;
+    background:var(--navy-950);
+    color:#eef1f5;
+    text-align:left;
+    padding:.65rem .8rem;
+    font-weight:600;
+    white-space:nowrap;
+    cursor:pointer;
+    user-select:none;
+  }
+  thead th:hover{background:var(--navy-700);}
+  thead th .arrow{opacity:.5;font-size:.75em;margin-left:.25em;}
+  tbody td{
+    padding:.6rem .8rem;
+    border-top:1px solid var(--line);
+    vertical-align:top;
+  }
+  tbody tr:hover{background:#faf9f6;}
+  td.paket{max-width:320px;}
+  td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  td.date{white-space:nowrap;}
+
+  .badge{
+    display:inline-block;
+    padding:.2rem .55rem;
+    border-radius:100px;
+    font-size:.76rem;
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .badge.aktif{background:var(--green-bg);color:var(--green);}
+  .badge.selesai{background:#e9e9e6;color:#5b6270;}
+  .badge.unknown{background:var(--amber-bg);color:var(--amber);}
+
+  .empty{padding:2.5rem;text-align:center;color:var(--ink-soft);}
+
+  footer{
+    max-width:1180px;margin:0 auto;padding:0 1.5rem 2.5rem;
+    color:var(--ink-soft);font-size:.78rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="kop">Kabupaten Kuningan &middot; e-Purchasing / Nontender</div>
+    <h1>Dashboard Pengadaan Barang/Jasa 2026</h1>
+    <p>Rekap paket pengadaan beserta status pekerjaan, dihitung otomatis berdasarkan tanggal hari ini.</p>
+    <div class="stats" id="stats"></div>
+  </div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Cari satker, nama paket, atau penyedia…">
+    <select id="filterStatus">
+      <option value="">Semua status</option>
+      <option value="Aktif">Aktif</option>
+      <option value="Selesai">Selesai</option>
+      <option value="Belum Ada Jadwal">Belum Ada Jadwal</option>
+    </select>
+  </div>
+
+  <div class="count" id="count"></div>
+
+  <div class="table-wrap">
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th data-key="satker">Satuan Kerja</th>
+          <th data-key="paket">Nama Paket</th>
+          <th data-key="pagu" style="text-align:right">Pagu</th>
+          <th data-key="penyedia">Penyedia</th>
+          <th data-key="mulai">Tgl Mulai</th>
+          <th data-key="waktu">Waktu Penyelesaian</th>
+          <th data-key="selesai">Tgl Selesai</th>
+          <th data-key="status">Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="emptyMsg" style="display:none;">Tidak ada data yang cocok.</div>
+  </div>
+</main>
+
+<footer>
+  Sumber data: e-Purchasing/Nontender LKPP (Kab. Kuningan, TA 2026). Status "Aktif"/"Selesai" dihitung otomatis
+  dengan membandingkan tanggal selesai pekerjaan terhadap tanggal hari ini saat halaman dibuka.
+</footer>
+
+<script>
+const rupiah = n => n == null ? '-' : 'Rp ' + Number(n).toLocaleString('id-ID');
+
+function parseDate(s){
+  if(!s) return null;
+  // handles "YYYY-MM-DD 00:00:00" and ISO "YYYY-MM-DDTHH:mm:ss.ssssssZ"
+  const cleaned = s.replace(' ', 'T');
+  const d = new Date(cleaned);
+  return isNaN(d) ? null : d;
+}
+
+function formatDate(s){
+  const d = parseDate(s);
+  if(!d) return '-';
+  return d.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+function computeStatus(selesaiStr){
+  const d = parseDate(selesaiStr);
+  if(!d) return 'Belum Ada Jadwal';
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  d.setHours(0,0,0,0);
+  return d < today ? 'Selesai' : 'Aktif';
+}
+
+function badge(status){
+  const cls = status === 'Aktif' ? 'aktif' : status === 'Selesai' ? 'selesai' : 'unknown';
+  return `<span class="badge ${cls}">${status}</span>`;
+}
+
+let rows = [];
+let sortKey = null;
+let sortDir = 1;
+
+function render(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const statusFilter = document.getElementById('filterStatus').value;
+
+  let filtered = rows.filter(r=>{
+    const matchesQ = !q || [r.satker, r.paket, r.penyedia].some(v => (v||'').toLowerCase().includes(q));
+    const matchesStatus = !statusFilter || r.status === statusFilter;
+    return matchesQ && matchesStatus;
+  });
+
+  if(sortKey){
+    filtered.sort((a,b)=>{
+      let va = a[sortKey], vb = b[sortKey];
+      if(sortKey === 'pagu'){ va = va||0; vb = vb||0; }
+      else if(sortKey === 'mulai' || sortKey === 'selesai'){
+        va = parseDate(va)?.getTime() ?? -Infinity;
+        vb = parseDate(vb)?.getTime() ?? -Infinity;
+      } else {
+        va = (va||'').toString().toLowerCase();
+        vb = (vb||'').toString().toLowerCase();
+      }
+      if(va < vb) return -1*sortDir;
+      if(va > vb) return 1*sortDir;
+      return 0;
+    });
+  }
+
+  document.getElementById('count').textContent = `Menampilkan ${filtered.length} dari ${rows.length} paket`;
+
+  const tbody = document.getElementById('tbody');
+  const emptyMsg = document.getElementById('emptyMsg');
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    emptyMsg.style.display = 'block';
+  } else {
+    emptyMsg.style.display = 'none';
+    tbody.innerHTML = filtered.map(r => `
+      <tr>
+        <td>${r.satker || '-'}</td>
+        <td class="paket">${r.paket || '-'}</td>
+        <td class="num">${rupiah(r.pagu)}</td>
+        <td>${r.penyedia || '-'}</td>
+        <td class="date">${formatDate(r.mulai)}</td>
+        <td>${r.waktu || '-'}</td>
+        <td class="date">${formatDate(r.selesai)}</td>
+        <td>${badge(r.status)}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+function renderStats(){
+  const aktif = rows.filter(r=>r.status==='Aktif').length;
+  const selesai = rows.filter(r=>r.status==='Selesai').length;
+  const totalPagu = rows.reduce((s,r)=> s + (r.pagu||0), 0);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="n">${rows.length}</div><div class="l">Total Paket</div></div>
+    <div class="stat"><div class="n">${aktif}</div><div class="l">Sedang Aktif</div></div>
+    <div class="stat"><div class="n">${selesai}</div><div class="l">Selesai</div></div>
+    <div class="stat"><div class="n">${rupiah(totalPagu)}</div><div class="l">Total Pagu</div></div>
+  `;
+}
+
+fetch('data.json')
+  .then(res => res.json())
+  .then(data => {
+    rows = data.map(d => ({...d, status: computeStatus(d.selesai)}));
+    renderStats();
+    render();
+  })
+  .catch(err => {
+    document.getElementById('tbody').innerHTML = '';
+    document.getElementById('emptyMsg').style.display = 'block';
+    document.getElementById('emptyMsg').textContent = 'Gagal memuat data.json — pastikan file berada di folder yang sama.';
+    console.error(err);
+  });
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('filterStatus').addEventListener('change', render);
+
+document.querySelectorAll('thead th[data-key]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = 1; }
+    render();
+  });
+});
+</script>
+
+</body>
+</html>
