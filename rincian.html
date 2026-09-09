@@ -75,6 +75,7 @@
     <nav>
       <a href="index.html">Rekap Penyedia</a>
       <a href="rincian.html" class="active">Rincian Data</a>
+      <a href="#" id="logoutLink" style="margin-left:auto;">Keluar</a>
     </nav>
   </div>
 </header>
@@ -118,7 +119,11 @@
   dengan membandingkan tanggal selesai pekerjaan terhadap tanggal hari ini saat halaman dibuka.
 </footer>
 
-<script>
+<script type="module">
+import { auth, db, COLLECTION_NAME } from './firebase-config.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
 const rupiah = n => (n == null || n === '') ? '-' : 'Rp ' + Number(n).toLocaleString('id-ID');
 
 function parseDate(s){
@@ -204,17 +209,32 @@ function render(){
   }
 }
 
-fetch('data.json')
-  .then(res => res.json())
-  .then(data => {
+document.getElementById('logoutLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  await signOut(auth);
+  window.location.href = 'login.html';
+});
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    window.location.href = 'login.html';
+    return;
+  }
+  loadData();
+});
+
+async function loadData(){
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const data = snapshot.docs.map(d => d.data());
     rows = data.map(d => ({...d, _status: computeStatus(d)}));
     render();
-  })
-  .catch(err => {
+  } catch (err) {
     document.getElementById('emptyMsg').style.display = 'block';
-    document.getElementById('emptyMsg').textContent = 'Gagal memuat data.json — pastikan file berada di folder yang sama.';
+    document.getElementById('emptyMsg').textContent = 'Gagal memuat data dari Firestore.';
     console.error(err);
-  });
+  }
+}
 
 document.getElementById('search').addEventListener('input', render);
 document.getElementById('filterStatus').addEventListener('change', render);
