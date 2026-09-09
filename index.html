@@ -15,6 +15,10 @@
     --ink-soft:#5b6270;
     --green:#1f7a4d;
     --green-bg:#e4f3ea;
+    --red:#a3312a;
+    --red-bg:#fbeceb;
+    --amber:#8a5a12;
+    --amber-bg:#faf0dd;
     --font-head: "Iowan Old Style","Georgia","Times New Roman",serif;
     --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
@@ -56,8 +60,11 @@
   }
   .badge{
     display:inline-block;padding:.2rem .55rem;border-radius:100px;font-size:.76rem;
-    font-weight:600;background:var(--green-bg);color:var(--green);
+    font-weight:600;white-space:nowrap;
   }
+  .badge.tersedia{background:var(--green-bg);color:var(--green);}
+  .badge.penuh{background:var(--amber-bg);color:var(--amber);}
+  .badge.melebihi{background:var(--red-bg);color:var(--red);}
   footer{max-width:1000px;margin:0 auto;padding:0 1.5rem 2.5rem;color:var(--ink-soft);font-size:.78rem;}
 </style>
 </head>
@@ -161,14 +168,20 @@ async function loadData(){
 
     document.getElementById('count').textContent = `${recap.length} penyedia dengan paket aktif`;
 
-    document.getElementById('tbody').innerHTML = recap.map((r, i) => `
+    function kapasitasBadge(jumlah){
+  if(jumlah > 5) return `<span class="badge melebihi">Melebihi</span>`;
+  if(jumlah === 5) return `<span class="badge penuh">Penuh</span>`;
+  return `<span class="badge tersedia">Tersedia</span>`;
+}
+
+document.getElementById('tbody').innerHTML = recap.map((r, i) => `
       <tr>
         <td class="rank">${i+1}</td>
         <td>${r.nama}</td>
         <td class="num">
           <span class="bar" style="width:${Math.max(8, (r.jumlah/maxJumlah)*60)}px"></span>${r.jumlah}
         </td>
-        <td><span class="badge">Aktif</span></td>
+        <td>${kapasitasBadge(r.jumlah)}</td>
       </tr>
     `).join('');
   } catch (err) {
