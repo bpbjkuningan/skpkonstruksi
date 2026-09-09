@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Data — Dashboard Pengadaan</title>
+<style>
+  body{
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    max-width:640px;margin:3rem auto;padding:0 1.5rem;color:#1c1f24;
+  }
+  h1{font-size:1.3rem;}
+  button{
+    padding:.7rem 1.2rem;border:none;border-radius:5px;background:#0d1b2e;color:#fff;
+    font-size:.95rem;font-weight:600;cursor:pointer;margin-top:1rem;
+  }
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  #log{
+    margin-top:1.2rem;font-size:.85rem;background:#f6f5f1;border:1px solid #dcd9d0;
+    border-radius:6px;padding:.9rem 1rem;white-space:pre-wrap;max-height:320px;overflow:auto;
+  }
+  .warn{color:#8a5a12;font-size:.85rem;margin-top:.5rem;}
+</style>
+</head>
+<body>
+
+<h1>Import data.json ke Firestore</h1>
+<p>Halaman ini membaca <code>data.json</code> dari folder yang sama dan menuliskannya ke collection
+   <code>paket_konstruksi</code> di Firestore. <strong>Jalankan sekali saja</strong> — menjalankannya
+   berulang akan membuat data duplikat kecuali data lama dihapus dulu.</p>
+<p class="warn">Halaman ini butuh login (mengikuti Security Rules Firestore). Login dulu lewat
+   <a href="login.html">login.html</a> kalau belum.</p>
+
+<button id="importBtn">Mulai Import</button>
+<div id="log"></div>
+
+<script type="module">
+  import { auth, db, COLLECTION_NAME } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { collection, doc, writeBatch }
+    from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const btn = document.getElementById('importBtn');
+  const log = document.getElementById('log');
+  const appendLog = (msg) => { log.textContent += msg + '\n'; };
+
+  let ready = false;
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      appendLog('Belum login. Silakan login dulu lewat login.html');
+      btn.disabled = true;
+    } else {
+      appendLog(`Login sebagai: ${user.email}`);
+      ready = true;
+    }
+  });
+
+  btn.addEventListener('click', async () => {
+    if (!ready) return;
+    btn.disabled = true;
+    appendLog('Mengambil data.json…');
+
+    try {
+      const res = await fetch('data.json');
+      const data = await res.json();
+      appendLog(`Ditemukan ${data.length} record. Mengupload ke Firestore…`);
+
+      // Firestore batch write maksimal 500 operasi per batch.
+      const chunkSize = 450;
+      let uploaded = 0;
+
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((record) => {
+          const ref = doc(collection(db, COLLECTION_NAME));
+          batch.set(ref, record);
+        });
+        await batch.commit();
+        uploaded += chunk.length;
+        appendLog(`Terupload: ${uploaded} / ${data.length}`);
+      }
+
+      appendLog('Selesai! Semua data berhasil diimport ke Firestore.');
+    } catch (err) {
+      appendLog('Gagal: ' + err.message);
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
