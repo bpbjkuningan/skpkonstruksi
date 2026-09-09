@@ -10,6 +10,10 @@
     max-width:640px;margin:3rem auto;padding:0 1.5rem;color:#1c1f24;
   }
   h1{font-size:1.3rem;}
+  input[type=file]{
+    display:block;margin-top:1rem;padding:.6rem;border:1px solid #dcd9d0;border-radius:5px;
+    width:100%;background:#fff;font-size:.9rem;
+  }
   button{
     padding:.7rem 1.2rem;border:none;border-radius:5px;background:#0d1b2e;color:#fff;
     font-size:.95rem;font-weight:600;cursor:pointer;margin-top:1rem;
@@ -20,73 +24,127 @@
     border-radius:6px;padding:.9rem 1rem;white-space:pre-wrap;max-height:320px;overflow:auto;
   }
   .warn{color:#8a5a12;font-size:.85rem;margin-top:.5rem;}
+  .status{font-size:.85rem;margin-top:.6rem;color:#5b6270;}
 </style>
 </head>
 <body>
 
-<h1>Import data.json ke Firestore</h1>
-<p>Halaman ini membaca <code>data.json</code> dari folder yang sama dan menuliskannya ke collection
-   <code>paket_konstruksi</code> di Firestore. <strong>Jalankan sekali saja</strong> — menjalankannya
-   berulang akan membuat data duplikat kecuali data lama dihapus dulu.</p>
+<h1>Import Data ke Firestore</h1>
+<p>Pilih file JSON baru untuk diupload. Data lama di collection <code>paket_konstruksi</code>
+   akan <strong>dihapus dulu secara otomatis</strong> sebelum data baru ditulis, jadi tidak akan
+   terjadi penumpukan/duplikasi.</p>
 <p class="warn">Halaman ini butuh login (mengikuti Security Rules Firestore). Login dulu lewat
    <a href="login.html">login.html</a> kalau belum.</p>
 
-<button id="importBtn">Mulai Import</button>
+<div class="status" id="authStatus">Mengecek status login…</div>
+
+<input type="file" id="fileInput" accept="application/json,.json">
+<button id="importBtn" disabled>Timpa Data di Firestore</button>
 <div id="log"></div>
 
 <script type="module">
   import { auth, db, COLLECTION_NAME } from './firebase-config.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { collection, doc, writeBatch }
+  import { collection, doc, getDocs, writeBatch }
     from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const btn = document.getElementById('importBtn');
+  const fileInput = document.getElementById('fileInput');
+  const authStatus = document.getElementById('authStatus');
   const log = document.getElementById('log');
-  const appendLog = (msg) => { log.textContent += msg + '\n'; };
+  const appendLog = (msg) => { log.textContent += msg + '\n'; log.scrollTop = log.scrollHeight; };
 
-  let ready = false;
+  let loggedIn = false;
+  let selectedFile = null;
+
+  function refreshButton(){
+    btn.disabled = !(loggedIn && selectedFile);
+  }
+
   onAuthStateChanged(auth, (user) => {
     if (!user) {
-      appendLog('Belum login. Silakan login dulu lewat login.html');
-      btn.disabled = true;
+      authStatus.textContent = 'Belum login. Silakan login dulu lewat login.html sebelum import.';
+      loggedIn = false;
     } else {
-      appendLog(`Login sebagai: ${user.email}`);
-      ready = true;
+      authStatus.textContent = `Login sebagai: ${user.email}`;
+      loggedIn = true;
     }
+    refreshButton();
   });
 
+  fileInput.addEventListener('change', () => {
+    selectedFile = fileInput.files[0] || null;
+    refreshButton();
+  });
+
+  function readFileAsJson(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try { resolve(JSON.parse(reader.result)); }
+        catch (e) { reject(new Error('File bukan JSON yang valid: ' + e.message)); }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file.'));
+      reader.readAsText(file);
+    });
+  }
+
+  async function deleteAllDocs(){
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    if (snapshot.empty){
+      appendLog('Tidak ada data lama di Firestore — lanjut upload.');
+      return;
+    }
+    appendLog(`Menghapus ${snapshot.size} data lama…`);
+    const refs = snapshot.docs.map(d => d.ref);
+    const chunkSize = 450;
+    let deleted = 0;
+    for (let i = 0; i < refs.length; i += chunkSize) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + chunkSize).forEach(ref => batch.delete(ref));
+      await batch.commit();
+      deleted += Math.min(chunkSize, refs.length - i);
+      appendLog(`Terhapus: ${deleted} / ${refs.length}`);
+    }
+  }
+
+  async function uploadData(data){
+    appendLog(`Mengupload ${data.length} data baru…`);
+    const chunkSize = 450;
+    let uploaded = 0;
+    for (let i = 0; i < data.length; i += chunkSize) {
+      const chunk = data.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach((record) => {
+        const ref = doc(collection(db, COLLECTION_NAME));
+        batch.set(ref, record);
+      });
+      await batch.commit();
+      uploaded += chunk.length;
+      appendLog(`Terupload: ${uploaded} / ${data.length}`);
+    }
+  }
+
   btn.addEventListener('click', async () => {
-    if (!ready) return;
+    if (!loggedIn || !selectedFile) return;
     btn.disabled = true;
-    appendLog('Mengambil data.json…');
+    log.textContent = '';
 
     try {
-      const res = await fetch('data.json');
-      const data = await res.json();
-      appendLog(`Ditemukan ${data.length} record. Mengupload ke Firestore…`);
+      appendLog(`Membaca file: ${selectedFile.name}`);
+      const data = await readFileAsJson(selectedFile);
+      if (!Array.isArray(data)) throw new Error('File JSON harus berupa array data (list of object).');
+      appendLog(`File valid, berisi ${data.length} record.`);
 
-      // Firestore batch write maksimal 500 operasi per batch.
-      const chunkSize = 450;
-      let uploaded = 0;
+      await deleteAllDocs();
+      await uploadData(data);
 
-      for (let i = 0; i < data.length; i += chunkSize) {
-        const chunk = data.slice(i, i + chunkSize);
-        const batch = writeBatch(db);
-        chunk.forEach((record) => {
-          const ref = doc(collection(db, COLLECTION_NAME));
-          batch.set(ref, record);
-        });
-        await batch.commit();
-        uploaded += chunk.length;
-        appendLog(`Terupload: ${uploaded} / ${data.length}`);
-      }
-
-      appendLog('Selesai! Semua data berhasil diimport ke Firestore.');
+      appendLog('Selesai! Data lama sudah ditimpa dengan data baru.');
     } catch (err) {
       appendLog('Gagal: ' + err.message);
       console.error(err);
     } finally {
-      btn.disabled = false;
+      refreshButton();
     }
   });
 </script>
