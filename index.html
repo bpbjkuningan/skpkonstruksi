@@ -71,6 +71,7 @@
     <nav>
       <a href="index.html" class="active">Rekap Penyedia</a>
       <a href="rincian.html">Rincian Data</a>
+      <a href="#" id="logoutLink" style="margin-left:auto;">Keluar</a>
     </nav>
     <div class="stats" id="stats"></div>
   </div>
@@ -98,7 +99,11 @@
   membandingkan tanggal selesai pekerjaan terhadap tanggal hari ini saat halaman dibuka.
 </footer>
 
-<script>
+<script type="module">
+import { auth, db, COLLECTION_NAME } from './firebase-config.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
 function parseDate(s){
   if(!s) return null;
   const d = new Date(s.replace(' ', 'T'));
@@ -115,9 +120,24 @@ function computeStatus(row){
   return d < today ? 'Selesai' : 'Aktif';
 }
 
-fetch('data.json')
-  .then(res => res.json())
-  .then(data => {
+document.getElementById('logoutLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  await signOut(auth);
+  window.location.href = 'login.html';
+});
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    window.location.href = 'login.html';
+    return;
+  }
+  loadData();
+});
+
+async function loadData(){
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const data = snapshot.docs.map(d => d.data());
     const rows = data.map(d => ({...d, _status: computeStatus(d)}));
     const aktif = rows.filter(r => r._status === 'Aktif');
 
@@ -151,11 +171,11 @@ fetch('data.json')
         <td><span class="badge">Aktif</span></td>
       </tr>
     `).join('');
-  })
-  .catch(err => {
-    document.getElementById('tbody').innerHTML = '<tr><td colspan="4">Gagal memuat data.json</td></tr>';
+  } catch (err) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="4">Gagal memuat data dari Firestore</td></tr>';
     console.error(err);
-  });
+  }
+}
 </script>
 
 </body>
